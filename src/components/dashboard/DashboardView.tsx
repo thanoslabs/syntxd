@@ -191,7 +191,8 @@ export function DashboardView({ value, dashboard, onChange, editingId, onEdit, o
             them as a table, stat, time series, bar chart, or timeline.
           </p>
           <p className="dashboard-empty-hint">
-            Dashboards aren't saved — use <strong>Export</strong> to keep one and <strong>Import</strong> to reuse it.
+            Dashboards are saved in this browser. Use <strong>Export</strong> and <strong>Import</strong> to move one
+            elsewhere.
           </p>
           <div className="actions">
             <button type="button" onClick={addPanel}>

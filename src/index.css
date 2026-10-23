@@ -1036,3 +1036,34 @@ button.primary:hover:not(:disabled) {
     grid-column: 1 / -1;
   }
 }
+
+/* Local data ------------------------------------------------------------ */
+
+.local-data {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.local-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.local-status.warn {
+  color: var(--danger);
+}
+
+.local-data button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+button.danger,
+button.danger:hover:not(:disabled) {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
