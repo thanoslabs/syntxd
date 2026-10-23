@@ -1,6 +1,6 @@
 # Syntxd
 
-A stateless, client-side viewer and formatter for structured data — JSON today, CSV/YAML/XML on the roadmap. Paste JSON, format or minify it, and quickly search and explore an interactive tree — everything runs locally in your browser with no backend and no data leaving the page.
+A client-side viewer and formatter for structured data — JSON today, CSV/YAML/XML on the roadmap. Paste JSON, format or minify it, and quickly search and explore an interactive tree — everything runs locally in your browser with no backend and no data leaving the page.
 
 ## Features
 
@@ -11,6 +11,7 @@ A stateless, client-side viewer and formatter for structured data — JSON today
 - **JSONPath & filters** — query the document with JSONPath (member/index/wildcard/slice/union/recursive descent) and filter expressions (`[?(@.price > 20)]`); results are listed and highlighted in the tree
 - **Dashboards** — build panels from your JSON (table, stat, time series, bar chart, timeline), Grafana-Infinity style; export/import dashboard configs as JSON
 - **Copy** — copy the formatted JSON to your clipboard
+- **Local cache** — your input and dashboard are saved in this browser and restored next visit; **Clear local data** wipes them
 - **Responsive** — side-by-side panes on wide screens, stacked on narrow ones; light and dark themes
 
 ## Getting started
@@ -92,11 +93,20 @@ Time values may be ISO-8601 strings or epoch seconds/milliseconds; with `auto`, 
 
 From **Explore → JSONPath**, **Visualize** turns the current query into a new panel. **Load example** fills in sample data and a dashboard that uses every visualization.
 
-Dashboards are not persisted (the app is stateless): use **Export** to download the config as `*.dashboard.json` and **Import** to load it again.
+Dashboards are cached in your browser along with the input (see [Local data](#local-data)). To move one to another browser or share it, use **Export** to download the config as `*.dashboard.json` and **Import** to load it again.
+
+## Local data
+
+Your JSON input, dashboard, and current view (Explore or Dashboard) are saved to this browser's `localStorage` as you work, and restored the next time you open Syntxd. Nothing is sent to a server.
+
+- The header shows the save status. Very large inputs can exceed the browser's storage quota (usually around 5 MB). When that happens the dashboard is still saved, but the input isn't.
+- **Clear local data** (click twice to confirm) deletes everything Syntxd stored and resets the app to the sample.
+- If storage is blocked (some private-browsing modes, disabled site data), the app still works; it just won't remember anything.
+- Open tabs don't sync with each other. If two tabs are open, whichever saves last wins.
 
 ## How it works
 
-- **State** lives entirely in React component state; nothing is persisted.
+- **State** lives in React component state; [`src/lib/storage.ts`](src/lib/storage.ts) caches the input, dashboard, and view in `localStorage` (debounced) and restores them on load.
 - **Parsing & search logic** is pure and lives in [`src/lib/json.ts`](src/lib/json.ts): the JSON value is walked once to produce a renderable tree plus an ordered list of search matches (keys and primitive values, never array indices).
 - **JSONPath** ([`src/lib/jsonpath.ts`](src/lib/jsonpath.ts)) is a hand-rolled parser + evaluator (tokenizer → AST → evaluation, no `eval`).
 - **Dashboards** are pure data shaping plus thin SVG components: [`src/lib/frame.ts`](src/lib/frame.ts) turns a document + query into a typed data frame, [`src/lib/dashboard.ts`](src/lib/dashboard.ts) holds the panel model, auto field mapping, and import/export, and [`src/lib/scale.ts`](src/lib/scale.ts) computes axis ticks and labels. Charts in [`src/components/dashboard/`](src/components/dashboard/) are dependency-free SVG.
@@ -108,7 +118,7 @@ Dashboards are not persisted (the app is stateless): use **Export** to download 
 npm run test
 ```
 
-Unit tests cover parsing (including error location), formatting, the tree/search builder in [`src/lib/json.test.ts`](src/lib/json.test.ts), the JSONPath engine in [`src/lib/jsonpath.test.ts`](src/lib/jsonpath.test.ts), and the dashboard data layer in [`src/lib/frame.test.ts`](src/lib/frame.test.ts), [`src/lib/dashboard.test.ts`](src/lib/dashboard.test.ts), and [`src/lib/scale.test.ts`](src/lib/scale.test.ts).
+Unit tests cover parsing (including error location), formatting, the tree/search builder in [`src/lib/json.test.ts`](src/lib/json.test.ts), the JSONPath engine in [`src/lib/jsonpath.test.ts`](src/lib/jsonpath.test.ts), and the dashboard data layer in [`src/lib/frame.test.ts`](src/lib/frame.test.ts), [`src/lib/dashboard.test.ts`](src/lib/dashboard.test.ts), [`src/lib/scale.test.ts`](src/lib/scale.test.ts), and the local cache in [`src/lib/storage.test.ts`](src/lib/storage.test.ts).
 
 ## License
 

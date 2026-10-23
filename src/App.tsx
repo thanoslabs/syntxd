@@ -5,6 +5,8 @@ import { EMPTY_DASHBOARD, createPanel, exampleDashboard, exampleData } from './l
 import type { Dashboard } from './lib/dashboard'
 import { buildTree, formatJson, minifyJson, tryParse } from './lib/json'
 import { formatPath, queryJsonPath } from './lib/jsonpath'
+import { clearSession, getBrowserStore, loadSession, saveSession } from './lib/storage'
+import type { SaveStatus, Session } from './lib/storage'
 import type { ParseResult, JsonValue } from './lib/json'
 import type { JsonPathResult, PathKey } from './lib/jsonpath'
 
@@ -31,12 +33,27 @@ function previewValue(value: JsonValue): string {
   return text.length > 140 ? `${text.slice(0, 140)}…` : text
 }
 
+const SAVE_DELAY = 400
+const CONFIRM_TIMEOUT = 4000
+
 type QueryMode = 'search' | 'jsonpath'
 type View = 'explore' | 'dashboard'
 
+const DEFAULT_SESSION: Session = { raw: SAMPLE, dashboard: EMPTY_DASHBOARD, view: 'explore' }
+
+const SAVE_LABELS: Record<SaveStatus, string> = {
+  saved: 'Saved in this browser',
+  'input-too-large': 'Input too large to save — dashboard saved',
+  failed: 'Couldn’t save locally',
+}
+
 export default function App() {
-  const [raw, setRaw] = useState(SAMPLE)
-  const [result, setResult] = useState<ParseResult>(() => tryParse(SAMPLE))
+  // Restore the previous local session once, before the first render.
+  const [store] = useState(getBrowserStore)
+  const [restored] = useState(() => ({ ...DEFAULT_SESSION, ...(store ? loadSession(store) : {}) }))
+
+  const [raw, setRaw] = useState(restored.raw)
+  const [result, setResult] = useState<ParseResult>(() => tryParse(restored.raw))
   const [queryMode, setQueryMode] = useState<QueryMode>('search')
   const [query, setQuery] = useState('')
   const [jsonPathInput, setJsonPathInput] = useState('')
@@ -45,9 +62,25 @@ export default function App() {
   const [expandMode, setExpandMode] = useState<'auto' | 'all' | 'none'>('auto')
   const [copied, setCopied] = useState(false)
   const [focusPath, setFocusPath] = useState<string | null>(null)
-  const [view, setView] = useState<View>('explore')
-  const [dashboard, setDashboard] = useState<Dashboard>(EMPTY_DASHBOARD)
+  const [view, setView] = useState<View>(restored.view)
+  const [dashboard, setDashboard] = useState<Dashboard>(restored.dashboard)
   const [editingPanel, setEditingPanel] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  const [confirmingClear, setConfirmingClear] = useState(false)
+
+  // Persist the input, dashboard, and view (debounced) to this browser only.
+  useEffect(() => {
+    if (!store) return
+    const timer = setTimeout(() => setSaveStatus(saveSession(store, { raw, dashboard, view }, DEFAULT_SESSION)), SAVE_DELAY)
+    return () => clearTimeout(timer)
+  }, [store, raw, dashboard, view])
+
+  // A pending "clear local data" confirmation expires if not confirmed.
+  useEffect(() => {
+    if (!confirmingClear) return
+    const timer = setTimeout(() => setConfirmingClear(false), CONFIRM_TIMEOUT)
+    return () => clearTimeout(timer)
+  }, [confirmingClear])
 
   // Re-parse input (debounced) so the tree updates as the user types/pastes.
   useEffect(() => {
@@ -175,6 +208,25 @@ export default function App() {
     setEditingPanel(null)
   }
 
+  /** Two-step: the first click asks for confirmation, the second wipes storage and resets the app. */
+  function handleClearLocalData() {
+    if (!confirmingClear) {
+      setConfirmingClear(true)
+      return
+    }
+    if (store) clearSession(store)
+    setRaw(DEFAULT_SESSION.raw)
+    setResult(tryParse(DEFAULT_SESSION.raw))
+    setDashboard(DEFAULT_SESSION.dashboard)
+    setView(DEFAULT_SESSION.view)
+    setEditingPanel(null)
+    setQuery('')
+    setJsonPathInput('')
+    setExpanded({})
+    setSaveStatus('saved')
+    setConfirmingClear(false)
+  }
+
   /** Turn the current JSONPath query into a new dashboard panel and open its editor. */
   function handleVisualize() {
     const panel = createPanel({ title: jsonPathInput.trim(), query: { root: jsonPathInput.trim(), columns: [] } })
@@ -191,6 +243,23 @@ export default function App() {
         <div>
           <h1>Syntxd</h1>
           <p className="tagline">View, format &amp; explore structured data — entirely in your browser.</p>
+        </div>
+        <div className="local-data">
+          <span
+            className={`local-status${saveStatus === 'saved' && store ? '' : ' warn'}`}
+            title="Your input and dashboard are kept in this browser's local storage and never leave this device."
+          >
+            {store ? SAVE_LABELS[saveStatus] : 'Local saving unavailable'}
+          </span>
+          <button
+            type="button"
+            className={confirmingClear ? 'danger' : ''}
+            onClick={handleClearLocalData}
+            onBlur={() => setConfirmingClear(false)}
+            disabled={!store}
+          >
+            {confirmingClear ? 'Click again to clear' : 'Clear local data'}
+          </button>
         </div>
         <div className="mode-toggle" role="tablist" aria-label="View">
           <button
