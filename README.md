@@ -9,6 +9,7 @@ A stateless, client-side viewer and formatter for structured data — JSON today
 - **Interactive tree** — collapsible nodes, type-aware syntax coloring, expand/collapse all
 - **Search** — case-insensitive matching across keys *and* values with match highlighting, a live match counter, and ↑/↓ navigation that auto-expands to each hit
 - **JSONPath & filters** — query the document with JSONPath (member/index/wildcard/slice/union/recursive descent) and filter expressions (`[?(@.price > 20)]`); results are listed and highlighted in the tree
+- **Dashboards** — build panels from your JSON (table, stat, time series, bar chart, timeline), Grafana-Infinity style; export/import dashboard configs as JSON
 - **Copy** — copy the formatted JSON to your clipboard
 - **Responsive** — side-by-side panes on wide screens, stacked on narrow ones; light and dark themes
 
@@ -71,11 +72,34 @@ parentheses. `==`/`!=` are strict deep-equality (no type coercion). A bare
 dependency-free, no-`eval` implementation in
 [`src/lib/jsonpath.ts`](src/lib/jsonpath.ts).
 
+## Dashboards
+
+Switch the header to **Dashboard** to build a grid of panels over the current input — similar to Grafana's Infinity data source, but entirely client-side. Each panel is:
+
+1. **Rows** — a JSONPath query selecting the rows (e.g. `$.metrics`, `$..events[?(@.level == 'error')]`). Empty uses the whole document, or its items when it's an array. A query returning a single array is unwrapped into its items.
+2. **Columns** — optional per-row selectors (`user.name`, `tags[0]`, `['odd key']`) with an alias and type (`string`, `number`, `time`, `boolean`, or `auto`). Leave empty to auto-detect: keys are unioned across rows and nested objects flattened (`latency.p95`).
+3. **Visualization** — field mappings default to *auto* and can be overridden:
+
+| Visualization | Uses |
+| --- | --- |
+| Table | every column; click headers to sort |
+| Stat | one or more numeric fields reduced by `last`/`first`/`sum`/`mean`/`min`/`max`/`count` |
+| Time series | a time field + one or more numeric fields (one shared axis, up to 8 series) |
+| Bar chart | a category field + a numeric field, aggregated per category |
+| Timeline | a start time, optional end time (bars vs. instant markers), and a lane field |
+
+Time values may be ISO-8601 strings or epoch seconds/milliseconds; with `auto`, epoch numbers are treated as time only when the field name looks like one (`time`, `timestamp`, `created_at`, `startedAt`, …). Times render in the browser's local timezone.
+
+From **Explore → JSONPath**, **Visualize** turns the current query into a new panel. **Load example** fills in sample data and a dashboard that uses every visualization.
+
+Dashboards are not persisted (the app is stateless): use **Export** to download the config as `*.dashboard.json` and **Import** to load it again.
+
 ## How it works
 
 - **State** lives entirely in React component state; nothing is persisted.
 - **Parsing & search logic** is pure and lives in [`src/lib/json.ts`](src/lib/json.ts): the JSON value is walked once to produce a renderable tree plus an ordered list of search matches (keys and primitive values, never array indices).
 - **JSONPath** ([`src/lib/jsonpath.ts`](src/lib/jsonpath.ts)) is a hand-rolled parser + evaluator (tokenizer → AST → evaluation, no `eval`).
+- **Dashboards** are pure data shaping plus thin SVG components: [`src/lib/frame.ts`](src/lib/frame.ts) turns a document + query into a typed data frame, [`src/lib/dashboard.ts`](src/lib/dashboard.ts) holds the panel model, auto field mapping, and import/export, and [`src/lib/scale.ts`](src/lib/scale.ts) computes axis ticks and labels. Charts in [`src/components/dashboard/`](src/components/dashboard/) are dependency-free SVG.
 - **Rendering** is a recursive component ([`src/components/JsonTreeNode.tsx`](src/components/JsonTreeNode.tsx)) that highlights matches and auto-expands ancestors when you navigate between hits.
 
 ## Testing
@@ -84,7 +108,7 @@ dependency-free, no-`eval` implementation in
 npm run test
 ```
 
-Unit tests cover parsing (including error location), formatting, the tree/search builder in [`src/lib/json.test.ts`](src/lib/json.test.ts), and the JSONPath engine in [`src/lib/jsonpath.test.ts`](src/lib/jsonpath.test.ts).
+Unit tests cover parsing (including error location), formatting, the tree/search builder in [`src/lib/json.test.ts`](src/lib/json.test.ts), the JSONPath engine in [`src/lib/jsonpath.test.ts`](src/lib/jsonpath.test.ts), and the dashboard data layer in [`src/lib/frame.test.ts`](src/lib/frame.test.ts), [`src/lib/dashboard.test.ts`](src/lib/dashboard.test.ts), and [`src/lib/scale.test.ts`](src/lib/scale.test.ts).
 
 ## License
 
